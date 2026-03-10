@@ -28,6 +28,11 @@
     <!-- Bibliotheken laden -->
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
     <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
-    <script src="app.js"></script>
-</body>
+    <script src="app.js"></script><script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log("Service Worker registriert"))
+      .catch(err => console.log("Fehler:", err));
+  }
+</script></body>
 </html>
