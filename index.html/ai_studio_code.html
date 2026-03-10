@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF PWA</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    <div id="sidebar">
+        <button id="login">1. OneDrive Login</button>
+        <button id="pick-file">2. PDF wählen</button>
+        <hr>
+        <button id="add-text">Text hinzufügen</button>
+        <input type="text" id="filename-input" placeholder="Datei umbenennen...">
+        <hr>
+        <p>Drag hierher zum Export:</p>
+        <div id="drag-zone" draggable="true">📄 Datei ziehen</div>
+    </div>
+    
+    <div id="resizer"></div>
+
+    <div id="preview-container">
+        <iframe id="pdf-viewer"></iframe>
+    </div>
+
+    <!-- Bibliotheken laden -->
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
