@@ -1,0 +1,7 @@
+body { display: flex; height: 100vh; margin: 0; font-family: sans-serif; }
+#sidebar { width: 300px; min-width: 150px; background: #f0f0f0; padding: 20px; box-sizing: border-box; }
+#resizer { width: 5px; cursor: col-resize; background: #ccc; }
+#preview-container { flex-grow: 1; background: #525659; display: flex; justify-content: center; }
+#pdf-viewer { width: 95%; height: 100%; border: none; background: white; }
+button { width: 100%; margin: 5px 0; padding: 10px; }
+#drag-zone { border: 2px dashed #666; padding: 20px; text-align: center; cursor: grab; }
