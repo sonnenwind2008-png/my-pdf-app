@@ -4,7 +4,7 @@ let currentFileName = "dokument.pdf";
 // 1. MSAL KONFIGURATION (OneDrive)
 const msalConfig = {
     auth: {
-        clientId: "102d947d-3b17-4163-9208-4f153d099873, // HIER DEINE ID EINTRAGEN
+        clientId: "102d947d-3b17-4163-9208-4f153d099873", // HIER DEINE ID EINTRAGEN
         authority: "https://login.microsoftonline.com/common",
         redirectUri: window.location.origin + window.location.pathname
     }
