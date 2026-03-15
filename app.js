@@ -4,7 +4,7 @@ let msalInstance = null;
 
 const msalConfig = {
     auth: {
-        clientId: "102d947d-3b17-4163-9208-4f153d099873", 
+        clientId: "DEINE_AZURE_CLIENT_ID", 
         authority: "https://login.microsoftonline.com/common",
         redirectUri: window.location.origin + window.location.pathname
     },
@@ -15,60 +15,111 @@ async function initMSAL() {
     try {
         msalInstance = new msal.PublicClientApplication(msalConfig);
         await msalInstance.initialize();
-
-        // Prüfen, ob wir gerade vom Microsoft-Login zurückkommen
         const response = await msalInstance.handleRedirectPromise();
-        
-        if (response) {
-            // Erfolg nach dem Zurückleiten!
-            handleSuccess(response);
-        } else {
-            // Prüfen, ob wir bereits eingeloggt sind
+        if (response) { handleSuccess(response); }
+        else {
             const accounts = msalInstance.getAllAccounts();
             if (accounts.length > 0) {
                 msalInstance.setActiveAccount(accounts[0]);
-                // Wir simulieren eine Response für die UI
-                document.getElementById('user-info').style.display = 'block';
-                document.getElementById('user-name').innerText = accounts[0].name;
-                document.getElementById('import-btn').disabled = false;
-                document.getElementById('login-btn').style.display = 'none';
+                updateLoggedInUI(accounts[0].name);
             }
         }
-    } catch (err) {
-        console.error("Init Fehler:", err);
-    }
+    } catch (err) { console.error(err); }
+}
+
+function updateLoggedInUI(name) {
+    document.getElementById('user-info').style.display = 'block';
+    document.getElementById('user-name').innerText = name;
+    document.getElementById('import-btn').disabled = false;
+    document.getElementById('login-btn').style.display = 'none';
 }
 
 function handleSuccess(response) {
-    document.getElementById('user-info').style.display = 'block';
-    document.getElementById('user-name').innerText = response.account.name;
-    document.getElementById('import-btn').disabled = false;
-    document.getElementById('login-btn').style.display = 'none';
-    alert("Erfolgreich angemeldet!");
+    updateLoggedInUI(response.account.name);
+    alert("Erfolgreich mit OneDrive verbunden!");
 }
 
 initMSAL();
 
 document.getElementById('login-btn').onclick = async () => {
-    // Statt Popup nutzen wir jetzt Redirect -> Sicherer gegen Blockierung!
-    await msalInstance.loginRedirect({
-        scopes: ["Files.ReadWrite.All", "User.Read"]
-    });
+    await msalInstance.loginRedirect({ scopes: ["Files.ReadWrite.All", "User.Read"] });
 };
 
-// --- AB HIER BLEIBT ALLES GLEICH (IMPORT, TEXT, ETC.) ---
-document.getElementById('import-btn').onclick = () => {
-    const input = document.createElement('input');
-    input.type = 'file'; input.accept = 'application/pdf';
-    input.onchange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        currentPdfBlob = file; currentFileName = file.name;
-        updateUI();
-    };
-    input.click();
+// --- NEU: DATEIEN VON ONEDRIVE LADEN ---
+document.getElementById('import-btn').onclick = async () => {
+    const account = msalInstance.getActiveAccount();
+    if (!account) return alert("Bitte erst einloggen!");
+
+    try {
+        // Token für Microsoft Graph holen
+        const tokenResponse = await msalInstance.acquireTokenSilent({
+            scopes: ["Files.ReadWrite.All"],
+            account: account
+        });
+
+        const accessToken = tokenResponse.accessToken;
+
+        // Microsoft Graph API aufrufen: Suche nach PDFs im gesamten OneDrive
+        const response = await fetch("https://graph.microsoft.com/v1.0/me/drive/root/search(q='.pdf')", {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        const data = await response.json();
+        const files = data.value;
+
+        if (files && files.length > 0) {
+            // Wir erstellen ein einfaches Auswahl-Menü
+            let fileListHTML = "<h3>Wähle eine PDF:</h3>";
+            files.forEach((file, index) => {
+                fileListHTML += `<button onclick="downloadOneDriveFile('${file.id}', '${file.name}')" style="font-size:11px; text-align:left;">📄 ${file.name}</button>`;
+            });
+            
+            // Wir zeigen die Liste kurzzeitig in der Sidebar an
+            const sidebar = document.getElementById('sidebar');
+            const originalContent = sidebar.innerHTML;
+            sidebar.innerHTML = fileListHTML + '<button onclick="location.reload()">Zurück</button>';
+            
+            // Diese Funktion machen wir global verfügbar
+            window.downloadOneDriveFile = async (fileId, fileName) => {
+                const fileRes = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                currentPdfBlob = await fileRes.blob();
+                currentFileName = fileName;
+                location.reload(); // Seite neu laden, um UI zu resetten
+                // Da wir die Seite neu laden, müssen wir den Blob kurz speichern
+                const reader = new FileReader();
+                reader.onload = () => {
+                    localStorage.setItem('tempPdf', reader.result);
+                    localStorage.setItem('tempName', fileName);
+                    location.reload();
+                };
+                reader.readAsDataURL(currentPdfBlob);
+            };
+        } else {
+            alert("Keine PDF-Dateien auf OneDrive gefunden.");
+        }
+    } catch (err) {
+        console.error("Fehler beim Laden der Dateien:", err);
+    }
 };
 
+// Beim Start prüfen, ob wir eine Datei aus dem Speicher laden müssen
+window.onload = () => {
+    const savedPdf = localStorage.getItem('tempPdf');
+    const savedName = localStorage.getItem('tempName');
+    if (savedPdf) {
+        fetch(savedPdf).then(res => res.blob()).then(blob => {
+            currentPdfBlob = blob;
+            currentFileName = savedName;
+            updateUI();
+            localStorage.removeItem('tempPdf');
+            localStorage.removeItem('tempName');
+        });
+    }
+};
+
+// --- PDF BEARBEITUNG (GLEICH BLEIBEND) ---
 document.getElementById('add-text-btn').onclick = async () => {
     if(!currentPdfBlob) return;
     const arrayBuffer = await currentPdfBlob.arrayBuffer();
@@ -78,7 +129,6 @@ document.getElementById('add-text-btn').onclick = async () => {
     const pdfBytes = await pdfDoc.save();
     currentPdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
     updateUI();
-    alert("Text hinzugefügt!");
 };
 
 document.getElementById('apply-rename-btn').onclick = () => {
@@ -103,6 +153,7 @@ document.getElementById('drag-zone').ondragstart = (e) => {
     e.dataTransfer.setData("DownloadURL", `application/pdf:${currentFileName}:${url}`);
 };
 
+// Resizer Logik
 const resizer = document.getElementById('resizer');
 const sidebar = document.getElementById('sidebar');
 resizer.onmousedown = (e) => {
