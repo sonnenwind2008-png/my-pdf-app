@@ -1,66 +1,83 @@
+// --- DIAGNOSE-VERSION ---
 let currentPdfBlob = null;
 let currentFileName = "dokument.pdf";
+let msalInstance = null;
 
-// 1. MSAL KONFIGURATION (OneDrive)
 const msalConfig = {
     auth: {
-        clientId: "102d947d-3b17-4163-9208-4f153d099873", // HIER DEINE ID EINTRAGEN
+        clientId: "DEINE_AZURE_CLIENT_ID", 
         authority: "https://login.microsoftonline.com/common",
         redirectUri: window.location.origin + window.location.pathname
     }
 };
 
-const msalInstance = new msal.PublicClientApplication(msalConfig);
+// INITIALISIERUNG MIT FEEDBACK
+async function initMSAL() {
+    try {
+        console.log("Starte MSAL Init...");
+        msalInstance = new msal.PublicClientApplication(msalConfig);
+        await msalInstance.initialize();
+        console.log("MSAL Initialisiert!");
+        // Kleiner visueller Check:
+        document.getElementById('login-btn').innerText = "1. OneDrive Login (Bereit)";
+    } catch (err) {
+        alert("Fehler bei der Initialisierung: " + err.message);
+    }
+}
 
-// LOGIN LOGIK
+initMSAL();
+
 document.getElementById('login-btn').onclick = async () => {
+    alert("Login-Button wurde geklickt! Starte Popup..."); // TEST-NACHRICHT 1
+
+    if (!msalInstance) {
+        alert("MSAL wurde noch nicht geladen. Bitte kurz warten.");
+        return;
+    }
+
     try {
         const loginResponse = await msalInstance.loginPopup({
-            scopes: ["Files.ReadWrite.All", "User.Read"]
+            scopes: ["Files.ReadWrite.All", "User.Read"],
+            prompt: "select_account"
         });
+        
+        alert("Login erfolgreich! Hallo " + loginResponse.account.name); // TEST-NACHRICHT 2
+        
         document.getElementById('user-info').style.display = 'block';
         document.getElementById('user-name').innerText = loginResponse.account.name;
         document.getElementById('import-btn').disabled = false;
         document.getElementById('login-btn').style.display = 'none';
+        
     } catch (err) {
-        console.error("Login Fehler:", err);
+        console.error(err);
+        alert("Microsoft Fehler-Meldung: " + err.name + "\nDetails: " + err.message);
     }
 };
 
-// DATEI IMPORT (Vom lokalen OneDrive Sync-Ordner oder Explorer)
-document.getElementById('import-btn').onclick = async () => {
+// --- REST DER FUNKTIONEN (IMPORT, TEXT, ETC.) ---
+document.getElementById('import-btn').onclick = () => {
     const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/pdf';
-    input.onchange = async (e) => {
+    input.type = 'file'; input.accept = 'application/pdf';
+    input.onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        currentPdfBlob = file;
-        currentFileName = file.name;
+        currentPdfBlob = file; currentFileName = file.name;
         updateUI();
     };
     input.click();
 };
 
-// TEXT HINZUFÜGEN (PDF-LIB)
 document.getElementById('add-text-btn').onclick = async () => {
     const arrayBuffer = await currentPdfBlob.arrayBuffer();
     const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-    const pages = pdfDoc.getPages();
-    const firstPage = pages[0];
-    
-    firstPage.drawText('Hinzugefügter Text von PWA', {
-        x: 50, y: firstPage.getHeight() - 50,
-        size: 20, color: PDFLib.rgb(0, 0.47, 0.83)
-    });
-
+    const page = pdfDoc.getPages()[0];
+    page.drawText('Hinzugefügter Text von PWA', { x: 50, y: 700, size: 20 });
     const pdfBytes = await pdfDoc.save();
     currentPdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
     updateUI();
-    alert("Text wurde zur ersten Seite hinzugefügt!");
+    alert("Text hinzugefügt!");
 };
 
-// UMBENENNEN
 document.getElementById('apply-rename-btn').onclick = () => {
     const newName = document.getElementById('rename-input').value;
     if (newName) {
@@ -69,7 +86,6 @@ document.getElementById('apply-rename-btn').onclick = () => {
     }
 };
 
-// UI AKTUALISIEREN
 function updateUI() {
     const url = URL.createObjectURL(currentPdfBlob);
     document.getElementById('pdf-viewer').src = url;
@@ -79,24 +95,17 @@ function updateUI() {
     document.getElementById('drag-zone').style.display = 'block';
 }
 
-// DRAG & DROP EXPORT (Wichtig für Chrome auf Mac/Windows)
 document.getElementById('drag-zone').ondragstart = (e) => {
-    const file = new File([currentPdfBlob], currentFileName, { type: 'application/pdf' });
-    const url = URL.createObjectURL(file);
-    // Erlaubt das Rausziehen direkt in einen OneDrive-Ordner im Finder/Explorer
+    const url = URL.createObjectURL(currentPdfBlob);
     e.dataTransfer.setData("DownloadURL", `application/pdf:${currentFileName}:${url}`);
 };
 
-// VARIABLE SIDEBAR LOGIK
 const resizer = document.getElementById('resizer');
 const sidebar = document.getElementById('sidebar');
-
 resizer.onmousedown = (e) => {
     document.onmousemove = (e) => {
         let newWidth = e.clientX;
-        if (newWidth > 150 && newWidth < 500) {
-            sidebar.style.width = newWidth + 'px';
-        }
+        if (newWidth > 150 && newWidth < 500) sidebar.style.width = newWidth + 'px';
     };
     document.onmouseup = () => { document.onmousemove = null; };
 };
