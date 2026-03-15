@@ -1,4 +1,3 @@
-// --- DIAGNOSE-VERSION ---
 let currentPdfBlob = null;
 let currentFileName = "dokument.pdf";
 let msalInstance = null;
@@ -8,53 +7,56 @@ const msalConfig = {
         clientId: "DEINE_AZURE_CLIENT_ID", 
         authority: "https://login.microsoftonline.com/common",
         redirectUri: window.location.origin + window.location.pathname
-    }
+    },
+    cache: { cacheLocation: "sessionStorage" }
 };
 
-// INITIALISIERUNG MIT FEEDBACK
 async function initMSAL() {
     try {
-        console.log("Starte MSAL Init...");
         msalInstance = new msal.PublicClientApplication(msalConfig);
         await msalInstance.initialize();
-        console.log("MSAL Initialisiert!");
-        // Kleiner visueller Check:
-        document.getElementById('login-btn').innerText = "1. OneDrive Login (Bereit)";
+
+        // Prüfen, ob wir gerade vom Microsoft-Login zurückkommen
+        const response = await msalInstance.handleRedirectPromise();
+        
+        if (response) {
+            // Erfolg nach dem Zurückleiten!
+            handleSuccess(response);
+        } else {
+            // Prüfen, ob wir bereits eingeloggt sind
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0) {
+                msalInstance.setActiveAccount(accounts[0]);
+                // Wir simulieren eine Response für die UI
+                document.getElementById('user-info').style.display = 'block';
+                document.getElementById('user-name').innerText = accounts[0].name;
+                document.getElementById('import-btn').disabled = false;
+                document.getElementById('login-btn').style.display = 'none';
+            }
+        }
     } catch (err) {
-        alert("Fehler bei der Initialisierung: " + err.message);
+        console.error("Init Fehler:", err);
     }
+}
+
+function handleSuccess(response) {
+    document.getElementById('user-info').style.display = 'block';
+    document.getElementById('user-name').innerText = response.account.name;
+    document.getElementById('import-btn').disabled = false;
+    document.getElementById('login-btn').style.display = 'none';
+    alert("Erfolgreich angemeldet!");
 }
 
 initMSAL();
 
 document.getElementById('login-btn').onclick = async () => {
-    alert("Login-Button wurde geklickt! Starte Popup..."); // TEST-NACHRICHT 1
-
-    if (!msalInstance) {
-        alert("MSAL wurde noch nicht geladen. Bitte kurz warten.");
-        return;
-    }
-
-    try {
-        const loginResponse = await msalInstance.loginPopup({
-            scopes: ["Files.ReadWrite.All", "User.Read"],
-            prompt: "select_account"
-        });
-        
-        alert("Login erfolgreich! Hallo " + loginResponse.account.name); // TEST-NACHRICHT 2
-        
-        document.getElementById('user-info').style.display = 'block';
-        document.getElementById('user-name').innerText = loginResponse.account.name;
-        document.getElementById('import-btn').disabled = false;
-        document.getElementById('login-btn').style.display = 'none';
-        
-    } catch (err) {
-        console.error(err);
-        alert("Microsoft Fehler-Meldung: " + err.name + "\nDetails: " + err.message);
-    }
+    // Statt Popup nutzen wir jetzt Redirect -> Sicherer gegen Blockierung!
+    await msalInstance.loginRedirect({
+        scopes: ["Files.ReadWrite.All", "User.Read"]
+    });
 };
 
-// --- REST DER FUNKTIONEN (IMPORT, TEXT, ETC.) ---
+// --- AB HIER BLEIBT ALLES GLEICH (IMPORT, TEXT, ETC.) ---
 document.getElementById('import-btn').onclick = () => {
     const input = document.createElement('input');
     input.type = 'file'; input.accept = 'application/pdf';
@@ -68,6 +70,7 @@ document.getElementById('import-btn').onclick = () => {
 };
 
 document.getElementById('add-text-btn').onclick = async () => {
+    if(!currentPdfBlob) return;
     const arrayBuffer = await currentPdfBlob.arrayBuffer();
     const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
     const page = pdfDoc.getPages()[0];
