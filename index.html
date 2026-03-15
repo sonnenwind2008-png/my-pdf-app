@@ -3,36 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF PWA</title>
+    <title>OneDrive PDF PWA</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
 </head>
 <body>
     <div id="sidebar">
-        <button id="login">1. OneDrive Login</button>
-        <button id="pick-file">2. PDF wählen</button>
+        <h2>PDF Editor</h2>
+        <button id="login-btn">1. OneDrive Login</button>
+        <div id="user-info" style="display:none; font-size: 12px; margin-bottom: 10px;">Eingeloggt als: <span id="user-name"></span></div>
+        
+        <button id="import-btn" disabled>2. PDF importieren</button>
         <hr>
-        <button id="add-text">Text hinzufügen</button>
-        <input type="text" id="filename-input" placeholder="Datei umbenennen...">
+        <button id="add-text-btn" disabled>Text hinzufügen</button>
+        <input type="text" id="rename-input" placeholder="Neuer Name (ohne .pdf)">
+        <button id="apply-rename-btn" disabled>Umbenennen</button>
+        
         <hr>
-        <p>Drag hierher zum Export:</p>
-        <div id="drag-zone" draggable="true">📄 Datei ziehen</div>
+        <p>Export (Drag & Drop):</p>
+        <div id="drag-zone" draggable="true" style="display:none;">📄 Datei hier rausziehen</div>
+        <p id="file-status">Keine Datei geladen</p>
     </div>
-    
+
     <div id="resizer"></div>
 
     <div id="preview-container">
-        <iframe id="pdf-viewer"></iframe>
+        <iframe id="pdf-viewer" src="about:blank"></iframe>
     </div>
 
-    <!-- Bibliotheken laden -->
+    <!-- Bibliotheken -->
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
     <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
-    <script src="app.js"></script><script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js')
-      .then(() => console.log("Service Worker registriert"))
-      .catch(err => console.log("Fehler:", err));
-  }
-</script></body>
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
+</body>
 </html>
