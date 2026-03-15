@@ -1,10 +1,11 @@
 let currentPdfBlob = null;
 let currentFileName = "dokument.pdf";
 let msalInstance = null;
+let accessToken = null;
 
 const msalConfig = {
     auth: {
-        clientId: "102d947d-3b17-4163-9208-4f153d099873", 
+        clientId: "102d947d-3b17-4163-9208-4f153d099873" 
         authority: "https://login.microsoftonline.com/common",
         redirectUri: window.location.origin + window.location.pathname
     },
@@ -36,7 +37,6 @@ function updateLoggedInUI(name) {
 
 function handleSuccess(response) {
     updateLoggedInUI(response.account.name);
-    alert("Erfolgreich mit OneDrive verbunden!");
 }
 
 initMSAL();
@@ -45,21 +45,18 @@ document.getElementById('login-btn').onclick = async () => {
     await msalInstance.loginRedirect({ scopes: ["Files.ReadWrite.All", "User.Read"] });
 };
 
-// --- NEU: DATEIEN VON ONEDRIVE LADEN ---
+// PDF SUCHE AUF ONEDRIVE
 document.getElementById('import-btn').onclick = async () => {
     const account = msalInstance.getActiveAccount();
-    if (!account) return alert("Bitte erst einloggen!");
+    if (!account) return;
 
     try {
-        // Token für Microsoft Graph holen
         const tokenResponse = await msalInstance.acquireTokenSilent({
             scopes: ["Files.ReadWrite.All"],
             account: account
         });
+        accessToken = tokenResponse.accessToken;
 
-        const accessToken = tokenResponse.accessToken;
-
-        // Microsoft Graph API aufrufen: Suche nach PDFs im gesamten OneDrive
         const response = await fetch("https://graph.microsoft.com/v1.0/me/drive/root/search(q='.pdf')", {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
@@ -68,58 +65,50 @@ document.getElementById('import-btn').onclick = async () => {
         const files = data.value;
 
         if (files && files.length > 0) {
-            // Wir erstellen ein einfaches Auswahl-Menü
-            let fileListHTML = "<h3>Wähle eine PDF:</h3>";
-            files.forEach((file, index) => {
-                fileListHTML += `<button onclick="downloadOneDriveFile('${file.id}', '${file.name}')" style="font-size:11px; text-align:left;">📄 ${file.name}</button>`;
+            const listElement = document.getElementById('file-list');
+            listElement.innerHTML = "";
+            document.getElementById('file-list-container').style.display = 'block';
+
+            files.forEach(file => {
+                const btn = document.createElement('button');
+                btn.style.fontSize = "10px";
+                btn.style.textAlign = "left";
+                btn.style.background = "#fff";
+                btn.style.color = "#333";
+                btn.innerText = "📄 " + file.name;
+                btn.onclick = () => downloadFile(file);
+                listElement.appendChild(btn);
             });
-            
-            // Wir zeigen die Liste kurzzeitig in der Sidebar an
-            const sidebar = document.getElementById('sidebar');
-            const originalContent = sidebar.innerHTML;
-            sidebar.innerHTML = fileListHTML + '<button onclick="location.reload()">Zurück</button>';
-            
-            // Diese Funktion machen wir global verfügbar
-            window.downloadOneDriveFile = async (fileId, fileName) => {
-                const fileRes = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                currentPdfBlob = await fileRes.blob();
-                currentFileName = fileName;
-                location.reload(); // Seite neu laden, um UI zu resetten
-                // Da wir die Seite neu laden, müssen wir den Blob kurz speichern
-                const reader = new FileReader();
-                reader.onload = () => {
-                    localStorage.setItem('tempPdf', reader.result);
-                    localStorage.setItem('tempName', fileName);
-                    location.reload();
-                };
-                reader.readAsDataURL(currentPdfBlob);
-            };
         } else {
-            alert("Keine PDF-Dateien auf OneDrive gefunden.");
+            alert("Keine PDFs gefunden.");
         }
-    } catch (err) {
-        console.error("Fehler beim Laden der Dateien:", err);
-    }
+    } catch (err) { console.error(err); }
 };
 
-// Beim Start prüfen, ob wir eine Datei aus dem Speicher laden müssen
-window.onload = () => {
-    const savedPdf = localStorage.getItem('tempPdf');
-    const savedName = localStorage.getItem('tempName');
-    if (savedPdf) {
-        fetch(savedPdf).then(res => res.blob()).then(blob => {
-            currentPdfBlob = blob;
-            currentFileName = savedName;
-            updateUI();
-            localStorage.removeItem('tempPdf');
-            localStorage.removeItem('tempName');
+// DATEI HERUNTERLADEN (KORRIGIERTER PFAD)
+async function downloadFile(file) {
+    try {
+        // Wir nutzen die Drive-ID und Item-ID für maximale Kompatibilität
+        const driveId = file.parentReference.driveId;
+        const fileId = file.id;
+
+        const response = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/content`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
         });
-    }
-};
 
-// --- PDF BEARBEITUNG (GLEICH BLEIBEND) ---
+        if (!response.ok) throw new Error("Download fehlgeschlagen");
+
+        currentPdfBlob = await response.blob();
+        currentFileName = file.name;
+        
+        document.getElementById('file-list-container').style.display = 'none';
+        updateUI();
+    } catch (err) {
+        alert("Fehler beim Laden: " + err.message);
+    }
+}
+
+// PDF BEARBEITUNG & UI
 document.getElementById('add-text-btn').onclick = async () => {
     if(!currentPdfBlob) return;
     const arrayBuffer = await currentPdfBlob.arrayBuffer();
@@ -142,18 +131,19 @@ document.getElementById('apply-rename-btn').onclick = () => {
 function updateUI() {
     const url = URL.createObjectURL(currentPdfBlob);
     document.getElementById('pdf-viewer').src = url;
-    document.getElementById('file-status').innerText = "Datei: " + currentFileName;
+    document.getElementById('file-status').innerText = "Datei geladen: " + currentFileName;
     document.getElementById('add-text-btn').disabled = false;
     document.getElementById('apply-rename-btn').disabled = false;
     document.getElementById('drag-zone').style.display = 'block';
 }
 
+// DRAG EXPORT
 document.getElementById('drag-zone').ondragstart = (e) => {
     const url = URL.createObjectURL(currentPdfBlob);
     e.dataTransfer.setData("DownloadURL", `application/pdf:${currentFileName}:${url}`);
 };
 
-// Resizer Logik
+// RESIZER
 const resizer = document.getElementById('resizer');
 const sidebar = document.getElementById('sidebar');
 resizer.onmousedown = (e) => {
