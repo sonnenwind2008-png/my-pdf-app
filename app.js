@@ -1,155 +1,110 @@
 let currentPdfBlob = null;
-let currentFileName = "dokument.pdf";
-let msalInstance = null;
-let accessToken = null;
+let currentFileName = "";
 
-const msalConfig = {
-    auth: {
-        clientId: "102d947d-3b17-4163-9208-4f153d099873",
-        authority: "https://login.microsoftonline.com/common",
-        redirectUri: window.location.origin + window.location.pathname
-    },
-    cache: { cacheLocation: "sessionStorage" }
-};
+// --- 1. IMPORT ÜBER DRAG & DROP ---
+const importZone = document.getElementById('import-zone');
 
-async function initMSAL() {
-    try {
-        msalInstance = new msal.PublicClientApplication(msalConfig);
-        await msalInstance.initialize();
-        const response = await msalInstance.handleRedirectPromise();
-        if (response) { handleSuccess(response); }
-        else {
-            const accounts = msalInstance.getAllAccounts();
-            if (accounts.length > 0) {
-                msalInstance.setActiveAccount(accounts[0]);
-                updateLoggedInUI(accounts[0].name);
-            }
-        }
-    } catch (err) { console.error(err); }
-}
-
-function updateLoggedInUI(name) {
-    document.getElementById('user-info').style.display = 'block';
-    document.getElementById('user-name').innerText = name;
-    document.getElementById('import-btn').disabled = false;
-    document.getElementById('login-btn').style.display = 'none';
-}
-
-function handleSuccess(response) {
-    updateLoggedInUI(response.account.name);
-}
-
-initMSAL();
-
-document.getElementById('login-btn').onclick = async () => {
-    await msalInstance.loginRedirect({ scopes: ["Files.ReadWrite.All", "User.Read"] });
-};
-
-// PDF SUCHE AUF ONEDRIVE
-document.getElementById('import-btn').onclick = async () => {
-    const account = msalInstance.getActiveAccount();
-    if (!account) return;
-
-    try {
-        const tokenResponse = await msalInstance.acquireTokenSilent({
-            scopes: ["Files.ReadWrite.All"],
-            account: account
-        });
-        accessToken = tokenResponse.accessToken;
-
-        const response = await fetch("https://graph.microsoft.com/v1.0/me/drive/root/search(q='.pdf')", {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
-
-        const data = await response.json();
-        const files = data.value;
-
-        if (files && files.length > 0) {
-            const listElement = document.getElementById('file-list');
-            listElement.innerHTML = "";
-            document.getElementById('file-list-container').style.display = 'block';
-
-            files.forEach(file => {
-                const btn = document.createElement('button');
-                btn.style.fontSize = "10px";
-                btn.style.textAlign = "left";
-                btn.style.background = "#fff";
-                btn.style.color = "#333";
-                btn.innerText = "📄 " + file.name;
-                btn.onclick = () => downloadFile(file);
-                listElement.appendChild(btn);
-            });
-        } else {
-            alert("Keine PDFs gefunden.");
-        }
-    } catch (err) { console.error(err); }
-};
-
-// DATEI HERUNTERLADEN (KORRIGIERTER PFAD)
-async function downloadFile(file) {
-    try {
-        // Wir nutzen die Drive-ID und Item-ID für maximale Kompatibilität
-        const driveId = file.parentReference.driveId;
-        const fileId = file.id;
-
-        const response = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/content`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
-
-        if (!response.ok) throw new Error("Download fehlgeschlagen");
-
-        currentPdfBlob = await response.blob();
+importZone.ondragover = (e) => { e.preventDefault(); importZone.style.borderColor = "#28a745"; };
+importZone.ondragleave = () => { importZone.style.borderColor = "#0078d4"; };
+importZone.ondrop = async (e) => {
+    e.preventDefault();
+    importZone.style.borderColor = "#0078d4";
+    const file = e.dataTransfer.files[0];
+    if (file && file.type === "application/pdf") {
+        currentPdfBlob = file;
         currentFileName = file.name;
-        
-        document.getElementById('file-list-container').style.display = 'none';
+        document.getElementById('rename-input').value = currentFileName;
+        updateUI();
+    } else {
+        alert("Bitte ziehen Sie eine gültige PDF-Datei hinein.");
+    }
+};
+
+// --- 2. TEXTMARKER LOGIK ---
+document.getElementById('add-text-btn').onclick = async () => {
+    if (!currentPdfBlob) return;
+    
+    try {
+        const arrayBuffer = await currentPdfBlob.arrayBuffer();
+        const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+        const pages = pdfDoc.getPages();
+        const firstPage = pages[0];
+
+        const text = document.getElementById('marker-text').value;
+        const colorHex = document.getElementById('marker-color').value;
+        const x = parseInt(document.getElementById('pos-x').value);
+        const y = parseInt(document.getElementById('pos-y').value);
+
+        // HEX Farbe zu RGB (0-1) umrechnen
+        const r = parseInt(colorHex.slice(1, 3), 16) / 255;
+        const g = parseInt(colorHex.slice(3, 5), 16) / 255;
+        const b = parseInt(colorHex.slice(5, 7), 16) / 255;
+
+        firstPage.drawText(text, {
+            x: x,
+            y: y,
+            size: 18,
+            color: PDFLib.rgb(r, g, b),
+        });
+
+        const pdfBytes = await pdfDoc.save();
+        currentPdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
         updateUI();
     } catch (err) {
-        alert("Fehler beim Laden: " + err.message);
-    }
-}
-
-// PDF BEARBEITUNG & UI
-document.getElementById('add-text-btn').onclick = async () => {
-    if(!currentPdfBlob) return;
-    const arrayBuffer = await currentPdfBlob.arrayBuffer();
-    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-    const page = pdfDoc.getPages()[0];
-    page.drawText('Hinzugefügter Text von PWA', { x: 50, y: 700, size: 20 });
-    const pdfBytes = await pdfDoc.save();
-    currentPdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-    updateUI();
-};
-
-document.getElementById('apply-rename-btn').onclick = () => {
-    const newName = document.getElementById('rename-input').value;
-    if (newName) {
-        currentFileName = newName.endsWith(".pdf") ? newName : newName + ".pdf";
-        updateUI();
+        alert("Fehler beim Bearbeiten der PDF: " + err.message);
     }
 };
 
+// --- 3. UMBENENNEN ---
+document.getElementById('rename-input').oninput = (e) => {
+    let name = e.target.value;
+    if (name.length > 0) {
+        currentFileName = name.endsWith(".pdf") ? name : name + ".pdf";
+        document.getElementById('file-status').innerText = "Vorschau: " + currentFileName;
+    }
+};
+
+// --- 4. SHARING ---
+document.getElementById('share-btn').onclick = async () => {
+    if (!currentPdfBlob) return;
+    const file = new File([currentPdfBlob], currentFileName, { type: 'application/pdf' });
+    
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                files: [file],
+                title: currentFileName,
+            });
+        } catch (err) { console.log("Sharing abgebrochen"); }
+    } else {
+        alert("Browser unterstützt Teilen nicht. Nutzen Sie 'Rausziehen'.");
+    }
+};
+
+// --- UI AKTUALISIEREN ---
 function updateUI() {
     const url = URL.createObjectURL(currentPdfBlob);
     document.getElementById('pdf-viewer').src = url;
-    document.getElementById('file-status').innerText = "Datei geladen: " + currentFileName;
+    document.getElementById('file-status').innerText = "Geladen: " + currentFileName;
     document.getElementById('add-text-btn').disabled = false;
-    document.getElementById('apply-rename-btn').disabled = false;
+    document.getElementById('share-btn').disabled = false;
     document.getElementById('drag-zone').style.display = 'block';
 }
 
-// DRAG EXPORT
+// --- 5. EXPORT ÜBER DRAG & DROP ---
 document.getElementById('drag-zone').ondragstart = (e) => {
-    const url = URL.createObjectURL(currentPdfBlob);
-    e.dataTransfer.setData("DownloadURL", `application/pdf:${currentFileName}:${url}`);
+    const fileURL = URL.createObjectURL(currentPdfBlob);
+    // Trick für Chrome/Edge: Ermöglicht das Ziehen direkt in den Finder/Desktop
+    e.dataTransfer.setData("DownloadURL", `application/pdf:${currentFileName}:${fileURL}`);
 };
 
-// RESIZER
+// --- RESIZER ---
 const resizer = document.getElementById('resizer');
 const sidebar = document.getElementById('sidebar');
 resizer.onmousedown = (e) => {
     document.onmousemove = (e) => {
         let newWidth = e.clientX;
-        if (newWidth > 150 && newWidth < 500) sidebar.style.width = newWidth + 'px';
+        if (newWidth > 220 && newWidth < 600) sidebar.style.width = newWidth + 'px';
     };
     document.onmouseup = () => { document.onmousemove = null; };
 };
