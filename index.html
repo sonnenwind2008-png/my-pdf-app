@@ -23,14 +23,26 @@
         <hr>
 
         <!-- NEU: Seiten verwalten -->
-        <div class="tool-section page-tool">
-            <h4>Seiten verwalten</h4>
-            <p id="page-count-info" style="font-size: 10px; margin-bottom: 5px;">Seiten: -</p>
-            <input type="text" id="page-selection" placeholder="z.B. 1, 3, 5-8">
-            <button id="extract-pages-btn" disabled>Neu zusammenstellen</button>
-            <p style="font-size: 9px; color: #666; margin-top:5px;">Nur gewählte Seiten behalten.</p>
-        </div>
-
+        <!-- Suche diesen Teil in deiner index.html und ersetze den Textmarker-Bereich -->
+<div class="tool-section">
+    <h4>Text hinzufügen</h4>
+    <input type="text" id="marker-text" placeholder="Text..." value="HINWEIS">
+    <div class="input-row">
+        <label>Farbe:</label>
+        <input type="color" id="marker-color" value="#ff0000">
+    </div>
+    <div class="input-row">
+        <label>X:</label><input type="number" id="pos-x" value="50">
+        <label>Y:</label><input type="number" id="pos-y" value="750">
+    </div>
+    <button id="add-text-btn" disabled>Text einfügen</button>
+    
+    <!-- NEU: Liste der hinzugefügten Texte -->
+    <div id="added-elements-list" style="margin-top:10px; border-top:1px solid #ccc; padding-top:5px;">
+        <p style="font-size: 10px; font-weight: bold; margin-bottom: 5px;">Hinzugefügte Texte:</p>
+        <div id="elements-container" style="max-height: 100px; overflow-y: auto;"></div>
+    </div>
+</div>
         <hr>
 
         <!-- Textmarker Bereich -->
