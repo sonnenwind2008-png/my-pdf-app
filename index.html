@@ -3,34 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OneDrive PDF PWA</title>
+    <title>PDF Pro Editor PWA</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
 </head>
 <body>
     <div id="sidebar">
         <h2>PDF Editor</h2>
-        <button id="login-btn">1. OneDrive Login</button>
-        <div id="user-info" style="display:none; font-size: 12px; margin-bottom: 10px;">Eingeloggt als: <span id="user-name"></span></div>
         
-        <button id="import-btn" disabled>2. PDF importieren</button>
+        <!-- Import Bereich -->
+        <div id="import-zone" class="drop-box">📄 PDF hierher ziehen (Import)</div>
         
-        <!-- NEU: Container für die Dateiliste -->
-        <div id="file-list-container" style="display:none; background: #e0e0e0; padding: 10px; border-radius: 5px; margin-top: 10px; max-height: 200px; overflow-y: auto;">
-            <h4 style="margin:0 0 10px 0;">PDF auswählen:</h4>
-            <div id="file-list"></div>
-            <button onclick="document.getElementById('file-list-container').style.display='none'" style="background: #666; font-size: 10px;">Schließen</button>
+        <hr>
+        
+        <!-- Umbenennen Bereich -->
+        <label style="font-size: 10px;">Dateiname (Klicken zum Bearbeiten):</label>
+        <input type="text" id="rename-input" placeholder="Warte auf Datei...">
+        
+        <hr>
+
+        <!-- Textmarker Bereich -->
+        <div class="tool-section">
+            <h4>Textmarker</h4>
+            <input type="text" id="marker-text" placeholder="Text eingeben..." value="HINWEIS">
+            <div class="input-row">
+                <label>Farbe:</label>
+                <input type="color" id="marker-color" value="#ff0000">
+            </div>
+            <div class="input-row">
+                <label>X-Pos:</label><input type="number" id="pos-x" value="50" step="10">
+                <label>Y-Pos:</label><input type="number" id="pos-y" value="700" step="10">
+            </div>
+            <button id="add-text-btn" disabled>Text an Position einfügen</button>
         </div>
 
         <hr>
-        <button id="add-text-btn" disabled>Text hinzufügen</button>
-        <input type="text" id="rename-input" placeholder="Neuer Name (ohne .pdf)">
-        <button id="apply-rename-btn" disabled>Umbenennen</button>
+
+        <!-- Export & Share -->
+        <button id="share-btn" disabled>Datei teilen / Senden</button>
+        <div id="drag-zone" draggable="true" class="drop-box export-box" style="display:none;">
+            🚀 Hier rausziehen (Export)
+        </div>
         
-        <hr>
-        <p>Export (Drag & Drop):</p>
-        <div id="drag-zone" draggable="true" style="display:none;">📄 Datei hier rausziehen</div>
-        <p id="file-status" style="font-size: 11px; word-break: break-all;">Keine Datei geladen</p>
+        <p id="file-status" style="font-size: 10px; color: #666;">Keine Datei geladen</p>
     </div>
 
     <div id="resizer"></div>
@@ -39,7 +54,6 @@
     </div>
 
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
-    <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
