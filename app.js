@@ -1,9 +1,8 @@
 let currentPdfBlob = null;
 let currentFileName = "";
 
-// --- 1. IMPORT ÜBER DRAG & DROP ---
+// --- 1. IMPORT ---
 const importZone = document.getElementById('import-zone');
-
 importZone.ondragover = (e) => { e.preventDefault(); importZone.style.borderColor = "#28a745"; };
 importZone.ondragleave = () => { importZone.style.borderColor = "#0078d4"; };
 importZone.ondrop = async (e) => {
@@ -14,97 +13,127 @@ importZone.ondrop = async (e) => {
         currentPdfBlob = file;
         currentFileName = file.name;
         document.getElementById('rename-input').value = currentFileName;
-        updateUI();
-    } else {
-        alert("Bitte ziehen Sie eine gültige PDF-Datei hinein.");
+        await updateUI();
     }
 };
 
-// --- 2. TEXTMARKER LOGIK ---
-document.getElementById('add-text-btn').onclick = async () => {
+// --- 2. SEITEN EXTRAHIEREN / NEU ZUSAMMENSTELLEN ---
+document.getElementById('extract-pages-btn').onclick = async () => {
     if (!currentPdfBlob) return;
-    
+    const input = document.getElementById('page-selection').value;
+    if (!input) return alert("Bitte Seitenzahlen eingeben (z.B. 1, 3-5)");
+
     try {
         const arrayBuffer = await currentPdfBlob.arrayBuffer();
-        const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-        const pages = pdfDoc.getPages();
-        const firstPage = pages[0];
+        const srcDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+        const newDoc = await PDFLib.PDFDocument.create();
+        
+        const totalPages = srcDoc.getPageCount();
+        const indices = parsePageSelection(input, totalPages);
 
-        const text = document.getElementById('marker-text').value;
-        const colorHex = document.getElementById('marker-color').value;
-        const x = parseInt(document.getElementById('pos-x').value);
-        const y = parseInt(document.getElementById('pos-y').value);
+        if (indices.length === 0) throw new Error("Keine gültigen Seitenzahlen erkannt.");
 
-        // HEX Farbe zu RGB (0-1) umrechnen
-        const r = parseInt(colorHex.slice(1, 3), 16) / 255;
-        const g = parseInt(colorHex.slice(3, 5), 16) / 255;
-        const b = parseInt(colorHex.slice(5, 7), 16) / 255;
+        // Seiten kopieren
+        const copiedPages = await newDoc.copyPages(srcDoc, indices);
+        copiedPages.forEach(page => newDoc.addPage(page));
 
-        firstPage.drawText(text, {
-            x: x,
-            y: y,
-            size: 18,
-            color: PDFLib.rgb(r, g, b),
-        });
-
-        const pdfBytes = await pdfDoc.save();
+        const pdfBytes = await newDoc.save();
         currentPdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-        updateUI();
+        await updateUI();
+        alert("PDF wurde neu zusammengestellt!");
     } catch (err) {
-        alert("Fehler beim Bearbeiten der PDF: " + err.message);
+        alert("Fehler: " + err.message);
     }
 };
 
-// --- 3. UMBENENNEN ---
+// Hilfsfunktion zum Parsen von "1, 3, 5-8"
+function parsePageSelection(input, maxPages) {
+    const pages = new Set();
+    const parts = input.split(',');
+    
+    parts.forEach(part => {
+        part = part.trim();
+        if (part.includes('-')) {
+            const [start, end] = part.split('-').map(Number);
+            for (let i = start; i <= end; i++) {
+                if (i > 0 && i <= maxPages) pages.add(i - 1);
+            }
+        } else {
+            const num = Number(part);
+            if (num > 0 && num <= maxPages) pages.add(num - 1);
+        }
+    });
+    return Array.from(pages).sort((a, b) => a - b);
+}
+
+// --- 3. TEXT HINZUFÜGEN ---
+document.getElementById('add-text-btn').onclick = async () => {
+    if (!currentPdfBlob) return;
+    const arrayBuffer = await currentPdfBlob.arrayBuffer();
+    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+    const firstPage = pdfDoc.getPages()[0];
+
+    const text = document.getElementById('marker-text').value;
+    const colorHex = document.getElementById('marker-color').value;
+    const x = parseInt(document.getElementById('pos-x').value);
+    const y = parseInt(document.getElementById('pos-y').value);
+
+    const r = parseInt(colorHex.slice(1, 3), 16) / 255;
+    const g = parseInt(colorHex.slice(3, 5), 16) / 255;
+    const b = parseInt(colorHex.slice(5, 7), 16) / 255;
+
+    firstPage.drawText(text, { x, y, size: 18, color: PDFLib.rgb(r, g, b) });
+
+    const pdfBytes = await pdfDoc.save();
+    currentPdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+    updateUI();
+};
+
+// --- 4. UMBENENNEN ---
 document.getElementById('rename-input').oninput = (e) => {
     let name = e.target.value;
     if (name.length > 0) {
         currentFileName = name.endsWith(".pdf") ? name : name + ".pdf";
-        document.getElementById('file-status').innerText = "Vorschau: " + currentFileName;
+        document.getElementById('file-status').innerText = "Export-Name: " + currentFileName;
     }
 };
 
-// --- 4. SHARING ---
-document.getElementById('share-btn').onclick = async () => {
-    if (!currentPdfBlob) return;
-    const file = new File([currentPdfBlob], currentFileName, { type: 'application/pdf' });
-    
-    if (navigator.share) {
-        try {
-            await navigator.share({
-                files: [file],
-                title: currentFileName,
-            });
-        } catch (err) { console.log("Sharing abgebrochen"); }
-    } else {
-        alert("Browser unterstützt Teilen nicht. Nutzen Sie 'Rausziehen'.");
-    }
-};
-
-// --- UI AKTUALISIEREN ---
-function updateUI() {
+// --- 5. UI & SHARING ---
+async function updateUI() {
     const url = URL.createObjectURL(currentPdfBlob);
     document.getElementById('pdf-viewer').src = url;
+    
+    // Seitenzahl ermitteln
+    const arrayBuffer = await currentPdfBlob.arrayBuffer();
+    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+    const count = pdfDoc.getPageCount();
+    
+    document.getElementById('page-count-info').innerText = `Dieses PDF hat ${count} Seiten.`;
     document.getElementById('file-status').innerText = "Geladen: " + currentFileName;
+    
+    document.getElementById('extract-pages-btn').disabled = false;
     document.getElementById('add-text-btn').disabled = false;
     document.getElementById('share-btn').disabled = false;
     document.getElementById('drag-zone').style.display = 'block';
 }
 
-// --- 5. EXPORT ÜBER DRAG & DROP ---
+document.getElementById('share-btn').onclick = async () => {
+    if (!currentPdfBlob) return;
+    const file = new File([currentPdfBlob], currentFileName, { type: 'application/pdf' });
+    if (navigator.share) await navigator.share({ files: [file], title: currentFileName });
+};
+
 document.getElementById('drag-zone').ondragstart = (e) => {
     const fileURL = URL.createObjectURL(currentPdfBlob);
-    // Trick für Chrome/Edge: Ermöglicht das Ziehen direkt in den Finder/Desktop
     e.dataTransfer.setData("DownloadURL", `application/pdf:${currentFileName}:${fileURL}`);
 };
 
-// --- RESIZER ---
 const resizer = document.getElementById('resizer');
 const sidebar = document.getElementById('sidebar');
 resizer.onmousedown = (e) => {
     document.onmousemove = (e) => {
         let newWidth = e.clientX;
-        if (newWidth > 220 && newWidth < 600) sidebar.style.width = newWidth + 'px';
+        if (newWidth > 240 && newWidth < 600) sidebar.style.width = newWidth + 'px';
     };
     document.onmouseup = () => { document.onmousemove = null; };
 };
