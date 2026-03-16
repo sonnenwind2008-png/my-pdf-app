@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Toolbox Pro</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="manifest" href="manifest.json">    
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
 </head>
 <body>
     <div id="sidebar">
@@ -17,11 +18,11 @@
         
         <hr>
         
-        <label style="font-size: 11px; font-weight: bold;">Dateiname:<label style="font-size: 11px; font-weight: bold;">Dateiname:</label>
-<textarea id="rename-input" rows="1" placeholder="Warte auf Datei..."></textarea>        
+        <label style="font-size: 11px; font-weight: bold;">Dateiname:</label>
+        <textarea id="rename-input" rows="1" placeholder="Warte auf Datei..."></textarea>
+        
         <hr>
 
-        <!-- Sektion: Seiten verwalten -->
         <div class="tool-section">
             <h4>Seiten verwalten</h4>
             <p id="page-count-info" style="font-size: 10px; margin-bottom: 5px;">Keine Datei geladen</p>
@@ -31,7 +32,6 @@
 
         <hr>
 
-        <!-- Sektion: Text hinzufügen -->
         <div class="tool-section">
             <h4>Text hinzufügen</h4>
             <input type="text" id="marker-text" placeholder="Text..." value="HINWEIS">
@@ -46,7 +46,7 @@
             <button id="add-text-btn" disabled>Text einfügen</button>
             
             <div id="added-elements-list">
-                <p style="font-size: 10px; font-weight: bold; margin: 10px 0 5px 0; border-top: 1px solid #ccc; pt-5">Hinzugefügte Texte:</p>
+                <p style="font-size: 10px; font-weight: bold; margin: 10px 0 5px 0; border-top: 1px solid #ccc; padding-top:5px;">Hinzugefügte Texte:</p>
                 <div id="elements-container"></div>
             </div>
         </div>
@@ -70,13 +70,11 @@
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
     <script src="app.js"></script>
     <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('Service Worker registriert'))
-        .catch(err => console.log('Service Worker Fehler', err));
-    });
-  }
-</script>    
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js');
+            });
+        }
+    </script>
 </body>
 </html>
