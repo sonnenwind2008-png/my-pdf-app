@@ -155,3 +155,42 @@ resizer.onmousedown = (e) => {
     };
     document.onmouseup = () => document.onmousemove = null;
 };
+// --- Die neue Funktion für das automatische Wachsen des Textfeldes ---
+function autoGrowRenameField() {
+    const field = document.getElementById('rename-input');
+    field.style.height = "auto"; // Zuerst zurücksetzen
+    field.style.height = field.scrollHeight + "px"; // Dann auf Inhaltshöhe setzen
+}
+
+// --- Integration in den Import (ondrop) ---
+// Suche in deinem ondrop-Event die Stelle, wo der Name gesetzt wird und füge autoGrow hinzu:
+importZone.ondrop = async (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type === "application/pdf") {
+        const arrayBuffer = await file.arrayBuffer();
+        originalPdfBytes = new Uint8Array(arrayBuffer);
+        addedTexts = [];
+        currentFileName = file.name;
+        
+        const renameInput = document.getElementById('rename-input');
+        renameInput.value = currentFileName;
+        autoGrowRenameField(); // HIER: Feld anpassen
+        
+        await renderPdf();
+    }
+};
+
+// --- Integration in die Umbenenn-Logik ---
+document.getElementById('rename-input').oninput = (e) => {
+    let name = e.target.value;
+    if (name.length > 0) {
+        currentFileName = name.endsWith(".pdf") ? name : name + ".pdf";
+        document.getElementById('file-status').innerText = "Vorschau: " + currentFileName;
+    }
+    autoGrowRenameField(); // HIER: Feld anpassen beim Tippen
+};
+
+// --- REST DER APP.JS BLEIBT GLEICH ---
+// (Stelle sicher, dass alle anderen Funktionen wie renderPdf, updateItem etc. 
+// weiterhin im Code enthalten sind, wie in der vorherigen Version besprochen.)
