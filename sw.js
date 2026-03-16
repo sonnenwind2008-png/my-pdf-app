@@ -1,13 +1,29 @@
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open('pwa-cache').then(c => c.addAll(['index.html', 'style.css', 'app.js'])));
-});
-self.addEventListener('fetch', (e) => {
-  e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
-});self.addEventListener('install', (e) => {
-  console.log('Service Worker installiert');
+const CACHE_NAME = 'pdf-toolbox-v1';
+const ASSETS = [
+  './',
+  './index.html',
+  './style.css',
+  './app.js',
+  './manifest.json'
+];
+
+// Installieren & Dateien in den Cache laden
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+  );
 });
 
-self.addEventListener('fetch', (e) => {
-  // Erforderlich für PWA-Erkennung
-  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+// Aktivieren & alten Cache löschen
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
+// WICHTIG: Der Fetch-Handler (ohne diesen kein Install-Button!)
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request);
+    })
+  );
 });
