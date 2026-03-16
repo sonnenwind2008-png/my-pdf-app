@@ -33,3 +33,21 @@ hr { border: 0; border-top: 1px solid #eee; margin: 5px 0; }
     margin: 0 !important;
     font-size: 9px !important;
 }
+#rename-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: inherit;
+    resize: none; /* Verhindert manuelles Ziehen */
+    overflow: hidden; /* Versteckt Scrollbalken */
+    min-height: 30px;
+    box-sizing: border-box;
+    display: block;
+    background: white;
+}
+#rename-input:focus {
+    border-color: #0078d4;
+    outline: none;
+}
